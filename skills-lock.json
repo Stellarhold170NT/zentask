@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "skills": {
+    "bruno-ai-context": {
+      "source": "StellarHold170NT/bruno-skill",
+      "sourceType": "github",
+      "computedHash": "e675d23703d9cc2ef109065440c665a3377871616f7b6a146fcf2f98dd3ff48b"
+    },
+    "gitnexus-cli": {
+      "source": "abhigyanpatwari/gitnexus",
+      "sourceType": "github",
+      "computedHash": "c94ef8869802f6994fd2a42309aa14eda4da2f48112a559c7c5d107fba797145"
+    },
+    "gitnexus-debugging": {
+      "source": "abhigyanpatwari/gitnexus",
+      "sourceType": "github",
+      "computedHash": "3b096801e001223de33405962c75fdeee5b6af7e6b42a79644c9f835b0ed7071"
+    },
+    "gitnexus-exploring": {
+      "source": "abhigyanpatwari/gitnexus",
+      "sourceType": "github",
+      "computedHash": "8d3aa1c7e009238e07a77cab1932e6bdb345814f7dbddb2abbe89ac443c49345"
+    },
+    "gitnexus-guide": {
+      "source": "abhigyanpatwari/gitnexus",
+      "sourceType": "github",
+      "computedHash": "0e663671ebbdd476ed97b4086d2736490787c99b30fd61dc8999e6564fdd038b"
+    },
+    "gitnexus-impact-analysis": {
+      "source": "abhigyanpatwari/gitnexus",
+      "sourceType": "github",
+      "computedHash": "15c7f2f6c04e8c1c2687bd4c08635162499f64b1bf257e87866c233504b1e67c"
+    },
+    "gitnexus-pr-review": {
+      "source": "abhigyanpatwari/gitnexus",
+      "sourceType": "github",
+      "computedHash": "99b5242de32fd429e4e98e354e5df88664042d1eecb3b28de92acd905146894b"
+    },
+    "gitnexus-refactoring": {
+      "source": "abhigyanpatwari/gitnexus",
+      "sourceType": "github",
+      "computedHash": "ebc60a8570c754cf2274368c890646c3ce7ef96561051a78d36bfb392514627f"
+    },
+    "grill-me": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "computedHash": "daf64ca15f4fa081a6747766db538e2dbd1131725ed4fcdd3d538dc62c7035ba"
+    },
+    "improve-codebase-architecture": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "computedHash": "2828d4c948b234731c11322985f05f2ba02f5816ed0c48b6dd5914b025d63ff1"
+    },
+    "markitdown": {
+      "source": "davila7/claude-code-templates",
+      "sourceType": "github",
+      "computedHash": "1b2ff0693423568ec77669ccb66c7e07363ae3aabef1ff73987490f257d4d46b"
+    },
+    "shadcn-ui": {
+      "source": "google-labs-code/stitch-skills",
+      "sourceType": "github",
+      "computedHash": "119a14a004bd30fa99d386df599bd0db8d057cca146f7ee08349daed48b2ea55"
+    }
+  }
+}

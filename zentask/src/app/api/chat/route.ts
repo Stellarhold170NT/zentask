@@ -1,0 +1,121 @@
+import { createOpenAI } from '@ai-sdk/openai';
+import { streamText, tool, createUIMessageStreamResponse, CoreMessage } from 'ai';
+// VERSION: V9-GROQ-INIT-FIX
+import { z } from 'zod';
+import fs from 'fs';
+import path from 'path';
+import { moveTask, searchTasks } from '@/lib/data';
+
+// Initialize Groq provider via createOpenAI
+const groq = createOpenAI({
+  baseURL: 'https://api.groq.com/openai/v1',
+  apiKey: process.env.GROQ_API_KEY,
+});
+
+export async function POST(req: Request) {
+  const body = await req.json();
+  const { messages } = body;
+  const rawProjectId = body.projectId;
+  const projectId = (rawProjectId && rawProjectId !== 'undefined') 
+    ? rawProjectId 
+    : "00000000-0000-0000-0000-000000000000";
+
+  const logDir = path.join(process.cwd(), 'logs');
+  if (!fs.existsSync(logDir)) fs.mkdirSync(logDir);
+  const logFile = path.join(logDir, 'chat-debug.log');
+
+  // MANUAL MAPPING FOR GROQ (llama-3.1 is very strict)
+  const coreMessages: CoreMessage[] = messages.map((m: any) => {
+    if (m.role === 'user') {
+      const userContent = m.content || (m.parts || [])
+        .filter((p: any) => p.type === 'text')
+        .map((p: any) => p.text)
+        .join('\n') || "";
+      return { role: 'user', content: userContent };
+    }
+    
+    if (m.role === 'assistant') {
+      const content = (m.parts || []).map((p: any) => {
+        if (p.type === 'text') return { type: 'text', text: p.text };
+        if (p.type === 'tool-invocation') {
+          return {
+            type: 'tool-call',
+            toolCallId: p.toolInvocation.toolCallId,
+            toolName: p.toolInvocation.toolName,
+            args: p.toolInvocation.args
+          };
+        }
+        return null;
+      }).filter(Boolean);
+      return { role: 'assistant', content: (content.length > 0 ? content : m.content) || "" } as CoreMessage;
+    }
+    
+    if (m.role === 'tool') {
+      const toolResults = (Array.isArray(m.content) ? m.content : (m.parts || []).filter((p: any) => p.type === 'tool-invocation' && p.toolInvocation.state === 'result').map((p: any) => p.toolInvocation))
+        .map((c: any) => ({
+          type: 'tool-result',
+          toolCallId: c.toolCallId,
+          toolName: c.toolName,
+          result: c.result
+        }));
+      return {
+        role: 'tool',
+        content: toolResults.length > 0 ? toolResults : []
+      } as CoreMessage;
+    }
+    
+    return { role: m.role, content: m.content || "" } as CoreMessage;
+  });
+
+  fs.appendFileSync(logFile, `--- API START V8 (${new Date().toISOString()}) ---\n`);
+
+  try {
+    const result = await streamText({
+      model: groq(process.env.VITE_GROQ_MODEL || 'llama-3.1-70b-versatile'),
+      messages: coreMessages,
+      maxSteps: 5,
+      system: `You are Zentask AI. Help manage Kanban tasks. 
+      - Always use search_tasks FIRST to find taskId by name.
+      - If search returns multiple, PICK THE BEST MATCH and move it.
+      - If search returns none, tell the user you can't find it.
+      - Column Mapping:
+        - To Do: "765d1b71-2b0e-48a1-b844-3d142079038d"
+        - In Progress: "e3437503-67c2-4824-8b65-6af24e106963"
+        - Done: "9c3c6211-1555-4680-9988-a681816f1947"
+      Project ID: ${projectId}`,
+      tools: {
+        move_task: tool({
+          description: 'Move a task to a different column',
+          parameters: z.object({
+            taskId: z.string(),
+            columnId: z.string(),
+            orderIndex: z.number().optional(),
+          }),
+          execute: async ({ taskId, columnId, orderIndex }) => {
+            const res = await moveTask(taskId, columnId, orderIndex || 0);
+            return res;
+          },
+        }),
+        search_tasks: tool({
+          description: 'Search for tasks in the current project. ALWAYS provide a query string with task title keywords.',
+          parameters: z.object({
+            query: z.string().optional().describe('Keywords to search for in task titles'),
+          }),
+          execute: async (args) => {
+            const query = args.query || "";
+            const res = await searchTasks(projectId, query);
+            fs.appendFileSync(logFile, `TOOL search_tasks ARGS: ${JSON.stringify(args)} -> ${res.length} found\n`);
+            return res;
+          },
+        }),
+      },
+    });
+
+    return createUIMessageStreamResponse({
+      stream: result.fullStream
+    });
+  } catch (error: any) {
+    fs.appendFileSync(logFile, `ERROR: ${error.message}\n`);
+    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+  }
+}
