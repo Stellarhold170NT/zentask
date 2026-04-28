@@ -16,6 +16,7 @@ import { eq, and, asc } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { CreateColumnDialog } from "@/components/boards/create-column-dialog";
 import { BoardColumns } from "@/components/boards/board-columns";
+import { BoardRealtimeProvider } from "@/lib/realtime/board-realtime-context";
 import { BoardAIWrapper } from "@/components/ai/board-ai-wrapper";
 
 export const dynamic = "force-dynamic";
@@ -100,6 +101,12 @@ export default async function BoardPage({ params }: BoardPageProps) {
     .innerJoin(profiles, eq(organizationMembers.userId, profiles.userId))
     .where(eq(organizationMembers.organizationId, org[0].id));
 
+  const userProfile = await db
+    .select({ fullName: profiles.fullName })
+    .from(profiles)
+    .where(eq(profiles.userId, user.id))
+    .limit(1);
+
   const formattedCards = boardCards.map((c) => ({
     id: c.id,
     title: c.title,
@@ -132,14 +139,21 @@ export default async function BoardPage({ params }: BoardPageProps) {
       </div>
 
       <div className="flex-1 overflow-x-auto overflow-y-hidden">
-        <BoardColumns
-          orgSlug={slug}
-          projectId={id}
+        <BoardRealtimeProvider
           boardId={boardId}
-          columns={boardColumns}
-          cards={formattedCards}
-          members={members}
-        />
+          userId={user.id}
+          userName={userProfile[0]?.fullName ?? null}
+          userEmail={user.email}
+        >
+          <BoardColumns
+            orgSlug={slug}
+            projectId={id}
+            boardId={boardId}
+            columns={boardColumns}
+            cards={formattedCards}
+            members={members}
+          />
+        </BoardRealtimeProvider>
       </div>
 
       <BoardAIWrapper

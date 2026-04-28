@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createCard } from "@/app/(dashboard)/actions";
+import { useBoardRealtimeContext } from "@/lib/realtime/board-realtime-context";
 import { Plus } from "lucide-react";
 
 const createCardSchema = z.object({
@@ -58,6 +59,7 @@ export function CreateCardDialog({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { broadcast, userId } = useBoardRealtimeContext();
 
   const {
     register,
@@ -94,9 +96,30 @@ export function CreateCardDialog({
       );
       if (result.error) {
         setError(result.error);
-      } else {
+      } else if (result.cardId) {
         setOpen(false);
         reset();
+        const assignee = members.find((m) => m.userId === data.assigneeId);
+        broadcast({
+          type: "card-created",
+          boardId,
+          card: {
+            id: result.cardId,
+            title: data.title.trim(),
+            description: data.description?.trim() || null,
+            priority: data.priority,
+            dueDate: data.dueDate ? new Date(data.dueDate) : null,
+            labels: data.labels
+              ? data.labels.split(",").map((l) => l.trim()).filter(Boolean)
+              : [],
+            assigneeId: data.assigneeId || null,
+            assigneeName: assignee?.fullName || null,
+            columnId,
+            order: 0,
+          },
+          userId,
+          timestamp: Date.now(),
+        });
         router.refresh();
       }
     } catch {

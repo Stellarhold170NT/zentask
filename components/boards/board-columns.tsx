@@ -24,6 +24,8 @@ import { CardItem } from "@/components/cards/card-item";
 import { CardDetailDialog } from "@/components/cards/card-detail-dialog";
 import { moveCard } from "@/app/(dashboard)/actions";
 import { useDroppable } from "@dnd-kit/core";
+import { useBoardRealtimeContext } from "@/lib/realtime/board-realtime-context";
+import type { BoardRealtimeEvent } from "@/lib/realtime/types";
 
 interface BoardColumnsProps {
   orgSlug: string;
@@ -140,10 +142,65 @@ export function BoardColumns({
   const [moveError, setMoveError] = useState("");
   const snapshotRef = useRef<typeof cards>([]);
   const cardsRef = useRef(cards);
+  const isDraggingRef = useRef(false);
+  const pendingEventsRef = useRef<BoardRealtimeEvent[]>([]);
+
+  const { broadcast, userId } = useBoardRealtimeContext();
 
   useEffect(() => {
     cardsRef.current = cards;
   }, [cards]);
+
+  useEffect(() => {
+    if (isDraggingRef.current) return;
+    setCards(initialCards);
+  }, [initialCards]);
+
+  useEffect(() => {
+    const { subscribe } = useBoardRealtimeContext();
+    return subscribe((event) => {
+      if (isDraggingRef.current) {
+        pendingEventsRef.current.push(event);
+        return;
+      }
+      applyRealtimeEvent(event);
+    });
+  }, []);
+
+  function applyRealtimeEvent(event: BoardRealtimeEvent) {
+    switch (event.type) {
+      case "card-moved":
+        setCards((prev) => {
+          const updated = prev.map((c) =>
+            c.id === event.cardId
+              ? { ...c, columnId: event.toColumnId }
+              : c
+          );
+          const fromCards = updated
+            .filter((c) => c.columnId === event.fromColumnId)
+            .map((c, i) => ({ ...c, order: i }));
+          const toCards = updated
+            .filter((c) => c.columnId === event.toColumnId)
+            .map((c, i) => ({ ...c, order: i }));
+          const others = updated.filter(
+            (c) => c.columnId !== event.fromColumnId && c.columnId !== event.toColumnId
+          );
+          return [...others, ...fromCards, ...toCards];
+        });
+        break;
+      case "card-created":
+        setCards((prev) => [...prev, event.card]);
+        break;
+      case "card-updated":
+        setCards((prev) =>
+          prev.map((c) => (c.id === event.card.id ? event.card : c))
+        );
+        break;
+      case "card-deleted":
+        setCards((prev) => prev.filter((c) => c.id !== event.cardId));
+        break;
+    }
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -152,6 +209,7 @@ export function BoardColumns({
   );
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
+    isDraggingRef.current = true;
     const cardId = event.active.id as string;
     const card = cardsRef.current.find((c) => c.id === cardId);
     if (card) {
@@ -214,6 +272,7 @@ export function BoardColumns({
 
     if (!over) {
       setCards(snapshotRef.current);
+      isDraggingRef.current = false;
       return;
     }
 
@@ -222,7 +281,10 @@ export function BoardColumns({
 
     const currentCards = cardsRef.current;
     const activeCard = currentCards.find((c) => c.id === activeId);
-    if (!activeCard) return;
+    if (!activeCard) {
+      isDraggingRef.current = false;
+      return;
+    }
 
     const overColumn = columns.find((c) => c.id === overId);
     const overCard = currentCards.find((c) => c.id === overId);
@@ -241,10 +303,12 @@ export function BoardColumns({
       if (targetIndex === -1) targetIndex = targetCards.length;
     } else {
       setCards(snapshotRef.current);
+      isDraggingRef.current = false;
       return;
     }
 
     if (activeCard.columnId === targetColumnId) {
+      isDraggingRef.current = false;
       return;
     }
 
@@ -253,12 +317,28 @@ export function BoardColumns({
       if (result.error) {
         setMoveError(result.error);
         setCards(snapshotRef.current);
+      } else {
+        broadcast({
+          type: "card-moved",
+          boardId,
+          userId,
+          timestamp: Date.now(),
+          cardId: activeId,
+          fromColumnId: activeCard.columnId,
+          toColumnId: targetColumnId,
+          newOrder: targetIndex,
+        });
       }
     } catch {
       setMoveError("Failed to move card");
       setCards(snapshotRef.current);
+    } finally {
+      isDraggingRef.current = false;
+      const pending = pendingEventsRef.current;
+      pendingEventsRef.current = [];
+      pending.forEach((evt) => applyRealtimeEvent(evt));
     }
-  }, [columns, boardId, orgSlug, projectId]);
+  }, [columns, boardId, orgSlug, projectId, broadcast, userId]);
 
   const dropAnimation: DropAnimation = {
     sideEffects: defaultDropAnimationSideEffects({

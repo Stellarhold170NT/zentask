@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { updateCard, deleteCard } from "@/app/(dashboard)/actions";
+import { useBoardRealtimeContext } from "@/lib/realtime/board-realtime-context";
 import { Trash2 } from "lucide-react";
 import {
   AlertDialog,
@@ -82,6 +83,7 @@ export function CardDetailDialog({
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteAlertOpen, setDeleteAlertOpen] = useState(false);
   const router = useRouter();
+  const { broadcast, userId } = useBoardRealtimeContext();
 
   const {
     register,
@@ -124,6 +126,27 @@ export function CardDetailDialog({
         setError(result.error);
       } else {
         onOpenChange(false);
+        const assignee = members.find((m) => m.userId === data.assigneeId);
+        broadcast({
+          type: "card-updated",
+          boardId,
+          card: {
+            id: card.id,
+            title: data.title.trim(),
+            description: data.description?.trim() || null,
+            priority: data.priority,
+            dueDate: data.dueDate ? new Date(data.dueDate) : null,
+            labels: data.labels
+              ? data.labels.split(",").map((l) => l.trim()).filter(Boolean)
+              : [],
+            assigneeId: data.assigneeId || null,
+            assigneeName: assignee?.fullName || null,
+            columnId,
+            order: 0,
+          },
+          userId,
+          timestamp: Date.now(),
+        });
         router.refresh();
       }
     } catch {
@@ -142,6 +165,14 @@ export function CardDetailDialog({
       } else {
         setDeleteAlertOpen(false);
         onOpenChange(false);
+        broadcast({
+          type: "card-deleted",
+          boardId,
+          cardId: card.id,
+          columnId,
+          userId,
+          timestamp: Date.now(),
+        });
         router.refresh();
       }
     } catch {
