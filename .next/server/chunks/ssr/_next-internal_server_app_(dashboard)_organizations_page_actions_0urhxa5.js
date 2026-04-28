@@ -1,3 +1,0 @@
-module.exports=[62917,a=>{"use strict";var b=a.i(71595);a.s([],4367),a.i(4367),a.s(["00e618f54dfaf085b7a7979054c4b4f790430c10ae",()=>b.logout,"404572519768da0c41816f76d3f5372f422bbee6d2",()=>b.forgotPassword,"6050c95f918522f59309b7b0b8c816fe1b5cf98f3c",()=>b.signup,"60ae9eb61ca0ad6faaa294734fb3c6ca5d81f363bc",()=>b.resetPassword,"60c4b2e01a85f98481f70816983cb8ceeeef6d31ec",()=>b.login],62917)}];
-
-//# sourceMappingURL=_next-internal_server_app_%28dashboard%29_organizations_page_actions_0urhxa5.js.map
