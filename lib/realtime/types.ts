@@ -23,7 +23,7 @@ export interface CardCreatedEvent {
     title: string;
     description: string | null;
     priority: string | null;
-    dueDate: Date | null;
+    dueDate: string | null;
     labels: string[] | null;
     assigneeId: string | null;
     assigneeName: string | null;
@@ -42,12 +42,12 @@ export interface CardUpdatedEvent {
     title: string;
     description: string | null;
     priority: string | null;
-    dueDate: Date | null;
+    dueDate: string | null;
     labels: string[] | null;
     assigneeId: string | null;
     assigneeName: string | null;
     columnId: string;
-    order: number;
+    order?: number;
   };
   userId: string;
   timestamp: number;

@@ -108,7 +108,7 @@ export function CreateCardDialog({
             title: data.title.trim(),
             description: data.description?.trim() || null,
             priority: data.priority,
-            dueDate: data.dueDate ? new Date(data.dueDate) : null,
+            dueDate: data.dueDate || null,
             labels: data.labels
               ? data.labels.split(",").map((l) => l.trim()).filter(Boolean)
               : [],

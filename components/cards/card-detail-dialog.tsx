@@ -135,14 +135,13 @@ export function CardDetailDialog({
             title: data.title.trim(),
             description: data.description?.trim() || null,
             priority: data.priority,
-            dueDate: data.dueDate ? new Date(data.dueDate) : null,
+            dueDate: data.dueDate || null,
             labels: data.labels
               ? data.labels.split(",").map((l) => l.trim()).filter(Boolean)
               : [],
             assigneeId: data.assigneeId || null,
             assigneeName: assignee?.fullName || null,
             columnId,
-            order: 0,
           },
           userId,
           timestamp: Date.now(),

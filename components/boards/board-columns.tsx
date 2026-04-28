@@ -156,8 +156,9 @@ export function BoardColumns({
     setCards(initialCards);
   }, [initialCards]);
 
+  const { subscribe } = useBoardRealtimeContext();
+
   useEffect(() => {
-    const { subscribe } = useBoardRealtimeContext();
     return subscribe((event) => {
       if (isDraggingRef.current) {
         pendingEventsRef.current.push(event);
@@ -165,17 +166,23 @@ export function BoardColumns({
       }
       applyRealtimeEvent(event);
     });
-  }, []);
+  }, [subscribe]);
 
   function applyRealtimeEvent(event: BoardRealtimeEvent) {
     switch (event.type) {
-      case "card-moved":
+      case "card-moved": {
+        const isSameColumn = event.fromColumnId === event.toColumnId;
         setCards((prev) => {
           const updated = prev.map((c) =>
             c.id === event.cardId
               ? { ...c, columnId: event.toColumnId }
               : c
           );
+          if (isSameColumn) {
+            return updated
+              .filter((c) => c.columnId === event.toColumnId)
+              .map((c, i) => ({ ...c, order: i }));
+          }
           const fromCards = updated
             .filter((c) => c.columnId === event.fromColumnId)
             .map((c, i) => ({ ...c, order: i }));
@@ -188,12 +195,34 @@ export function BoardColumns({
           return [...others, ...fromCards, ...toCards];
         });
         break;
+      }
       case "card-created":
-        setCards((prev) => [...prev, event.card]);
+        setCards((prev) => {
+          const newCard = {
+            ...event.card,
+            dueDate: event.card.dueDate ? new Date(event.card.dueDate) : null,
+          };
+          const colCards = prev.filter((c) => c.columnId === newCard.columnId);
+          if (colCards.length === 0) return [...prev, newCard];
+          const insertIdx = prev.indexOf(colCards[colCards.length - 1]) + 1;
+          const next = [...prev];
+          next.splice(insertIdx, 0, newCard);
+          return next;
+        });
         break;
       case "card-updated":
         setCards((prev) =>
-          prev.map((c) => (c.id === event.card.id ? event.card : c))
+          prev.map((c) =>
+            c.id === event.card.id
+              ? {
+                  ...c,
+                  ...event.card,
+                  dueDate: event.card.dueDate
+                    ? new Date(event.card.dueDate)
+                    : null,
+                }
+              : c
+          )
         );
         break;
       case "card-deleted":
@@ -273,6 +302,9 @@ export function BoardColumns({
     if (!over) {
       setCards(snapshotRef.current);
       isDraggingRef.current = false;
+      const pending = pendingEventsRef.current;
+      pendingEventsRef.current = [];
+      pending.forEach((evt) => applyRealtimeEvent(evt));
       return;
     }
 
@@ -283,6 +315,9 @@ export function BoardColumns({
     const activeCard = currentCards.find((c) => c.id === activeId);
     if (!activeCard) {
       isDraggingRef.current = false;
+      const pending = pendingEventsRef.current;
+      pendingEventsRef.current = [];
+      pending.forEach((evt) => applyRealtimeEvent(evt));
       return;
     }
 
@@ -304,6 +339,9 @@ export function BoardColumns({
     } else {
       setCards(snapshotRef.current);
       isDraggingRef.current = false;
+      const pending = pendingEventsRef.current;
+      pendingEventsRef.current = [];
+      pending.forEach((evt) => applyRealtimeEvent(evt));
       return;
     }
 
