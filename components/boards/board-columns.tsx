@@ -144,8 +144,9 @@ export function BoardColumns({
   const cardsRef = useRef(cards);
   const isDraggingRef = useRef(false);
   const pendingEventsRef = useRef<BoardRealtimeEvent[]>([]);
+  const currentOverColumnRef = useRef<string | null>(null);
 
-  const { broadcast, userId } = useBoardRealtimeContext();
+  const { broadcast, userId, onlineUsers } = useBoardRealtimeContext();
 
   useEffect(() => {
     cardsRef.current = cards;
@@ -169,6 +170,7 @@ export function BoardColumns({
   }, [subscribe]);
 
   function applyRealtimeEvent(event: BoardRealtimeEvent) {
+    console.log("[Realtime] Applying event:", event.type, event);
     switch (event.type) {
       case "card-moved": {
         const isSameColumn = event.fromColumnId === event.toColumnId;
@@ -239,6 +241,7 @@ export function BoardColumns({
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     isDraggingRef.current = true;
+    currentOverColumnRef.current = null;
     const cardId = event.active.id as string;
     const card = cardsRef.current.find((c) => c.id === cardId);
     if (card) {
@@ -273,6 +276,8 @@ export function BoardColumns({
       return;
     }
 
+    currentOverColumnRef.current = targetColumnId;
+
     if (activeCard.columnId === targetColumnId) {
       return;
     }
@@ -296,12 +301,15 @@ export function BoardColumns({
   }, [columns]);
 
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    console.log("[Realtime] handleDragEnd triggered");
     const { active, over } = event;
     setActiveCard(null);
 
     if (!over) {
+      console.log("[Realtime] No drop target, cancelling");
       setCards(snapshotRef.current);
       isDraggingRef.current = false;
+      currentOverColumnRef.current = null;
       const pending = pendingEventsRef.current;
       pendingEventsRef.current = [];
       pending.forEach((evt) => applyRealtimeEvent(evt));
@@ -310,52 +318,46 @@ export function BoardColumns({
 
     const activeId = active.id as string;
     const overId = over.id as string;
+    console.log("[Realtime] Drag:", { activeId, overId });
 
     const currentCards = cardsRef.current;
     const activeCard = currentCards.find((c) => c.id === activeId);
     if (!activeCard) {
+      console.log("[Realtime] Active card not found");
       isDraggingRef.current = false;
+      currentOverColumnRef.current = null;
       const pending = pendingEventsRef.current;
       pendingEventsRef.current = [];
       pending.forEach((evt) => applyRealtimeEvent(evt));
       return;
     }
 
-    const overColumn = columns.find((c) => c.id === overId);
-    const overCard = currentCards.find((c) => c.id === overId);
+    const targetColumnId = currentOverColumnRef.current;
+    console.log("[Realtime] Target column from dragOver:", targetColumnId, "Active card column:", activeCard.columnId);
 
-    let targetColumnId: string;
-    let targetIndex: number;
-
-    if (overColumn) {
-      targetColumnId = overColumn.id;
-      const targetCards = currentCards.filter((c) => c.columnId === targetColumnId);
-      targetIndex = targetCards.length > 0 ? targetCards.length - 1 : 0;
-    } else if (overCard) {
-      targetColumnId = overCard.columnId;
-      const targetCards = currentCards.filter((c) => c.columnId === targetColumnId);
-      targetIndex = targetCards.findIndex((c) => c.id === overId);
-      if (targetIndex === -1) targetIndex = targetCards.length;
-    } else {
-      setCards(snapshotRef.current);
+    if (!targetColumnId || activeCard.columnId === targetColumnId) {
+      console.log("[Realtime] Same column or no target, skipping server call");
       isDraggingRef.current = false;
+      currentOverColumnRef.current = null;
       const pending = pendingEventsRef.current;
       pendingEventsRef.current = [];
       pending.forEach((evt) => applyRealtimeEvent(evt));
       return;
     }
 
-    if (activeCard.columnId === targetColumnId) {
-      isDraggingRef.current = false;
-      return;
-    }
+    const targetCards = currentCards.filter((c) => c.columnId === targetColumnId);
+    const targetIndex = targetCards.length;
+    console.log("[Realtime] Calling moveCard...", { activeId, targetColumnId, targetIndex });
 
     try {
       const result = await moveCard(activeId, boardId, orgSlug, projectId, targetColumnId, targetIndex);
+      console.log("[Realtime] moveCard result:", result);
       if (result.error) {
+        console.log("[Realtime] moveCard returned error:", result.error);
         setMoveError(result.error);
         setCards(snapshotRef.current);
       } else {
+        console.log("[Realtime] moveCard success, calling broadcast...");
         broadcast({
           type: "card-moved",
           boardId,
@@ -366,12 +368,15 @@ export function BoardColumns({
           toColumnId: targetColumnId,
           newOrder: targetIndex,
         });
+        console.log("[Realtime] Broadcast called");
       }
-    } catch {
+    } catch (err) {
+      console.log("[Realtime] moveCard threw error:", err);
       setMoveError("Failed to move card");
       setCards(snapshotRef.current);
     } finally {
       isDraggingRef.current = false;
+      currentOverColumnRef.current = null;
       const pending = pendingEventsRef.current;
       pendingEventsRef.current = [];
       pending.forEach((evt) => applyRealtimeEvent(evt));
@@ -406,6 +411,15 @@ export function BoardColumns({
 
   return (
     <>
+      {onlineUsers.length > 0 && (
+        <div className="flex items-center gap-2 px-4 py-2 text-xs text-muted-foreground">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+          </span>
+          <span>{onlineUsers.length} user{onlineUsers.length > 1 ? "s" : ""} online</span>
+        </div>
+      )}
       {moveError && (
         <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md mb-4">
           {moveError}

@@ -52,17 +52,19 @@ export function BoardRealtimeProvider({
   }, []);
 
   const broadcast = useCallback((event: BoardRealtimeEvent) => {
+    console.log("[Realtime] Broadcasting:", event.type, "to board:", boardId);
     channelRef.current?.send({
       type: "broadcast",
       event: "board-event",
       payload: event,
     });
-  }, []);
+  }, [boardId]);
 
   useEffect(() => {
     if (hasSetup.current) return;
     hasSetup.current = true;
 
+    console.log("[Realtime] Setting up channel for board:", boardId);
     const supabase = createClient();
 
     const channel = supabase.channel(`board:${boardId}`, {
@@ -70,6 +72,7 @@ export function BoardRealtimeProvider({
     });
 
     channel.on("broadcast", { event: "board-event" }, (message) => {
+      console.log("[Realtime] Received broadcast:", message.payload);
       const event = message.payload as BoardRealtimeEvent;
       subscribersRef.current.forEach((cb) => cb(event));
     });
@@ -77,23 +80,31 @@ export function BoardRealtimeProvider({
     channel.on("presence", { event: "sync" }, () => {
       const state = channel.presenceState<PresenceUser>();
       const users: PresenceUser[] = Object.values(state).flat();
+      console.log("[Realtime] Presence sync, users:", users.length);
       setOnlineUsers(users);
     });
 
     channel.subscribe(async (status) => {
+      console.log("[Realtime] Channel status:", status);
       if (status === "SUBSCRIBED") {
+        console.log("[Realtime] Channel subscribed, tracking presence...");
         await channel.track({
           userId,
           fullName: userName,
           email: userEmail,
           onlineAt: new Date().toISOString(),
         });
+        console.log("[Realtime] Presence tracked");
+      }
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+        console.error("[Realtime] Channel error/timed out:", status);
       }
     });
 
     channelRef.current = channel;
 
     return () => {
+      console.log("[Realtime] Cleaning up channel for board:", boardId);
       hasSetup.current = false;
       channelRef.current = null;
       channel.untrack();
