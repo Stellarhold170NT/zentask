@@ -18,14 +18,14 @@
 | Server-side rendering | Built-in (SSR, RSC) | Client-only (CSR) | Nuxt required | Built-in |
 | API routes co-location | Yes | No | No | Partial |
 | Kanban ecosystem | Largest (dnd-kit, hello-pangea) | Same but needs API | Smaller | Minimal |
-| AI SDK compatibility | First-class (Vercel AI SDK) | Works but manual | Works but less mature | Limited |
+| AI SDK compatibility | First-class (Tambo AI) | Works but manual | Works but less mature | Limited |
 | Full-stack DX | Single codebase | Two codebases | Two codebases | Single codebase |
 
 **Specific version pin:** `next@15.2.x` (stable App Router, React Server Components, Server Actions)
 
 **Why not React SPA alone:** ZenTask needs server-side API endpoints for AI streaming, database access, and auth. A pure SPA would require a separate backend—doubling infrastructure complexity for v1.
 
-**Why not Vue/Svelte:** While both are excellent, React's ecosystem has significantly more production-ready Kanban and AI integration libraries. The Next.js + Vercel AI SDK synergy is unmatched.
+**Why not Vue/Svelte:** While both are excellent, React's ecosystem has significantly more production-ready Kanban and AI integration libraries. The Next.js + Tambo AI synergy is unmatched for generative React UI.
 
 **Confidence:** **HIGH** — Next.js 15 is the industry standard for full-stack React applications in 2025. Countless Kanban projects (kanvas, taskflow, kanban-board) use this exact stack.
 
@@ -165,24 +165,34 @@ Kanban data is **inherently relational**: Boards → Columns → Tasks → Subta
 
 ## 7. AI / LLM Integration
 
-### Primary SDK: Vercel AI SDK v5+
+### Primary SDK: Tambo AI
 
-**Recommendation:** `ai@5.x` (Vercel AI SDK Core + UI)
+**Recommendation:** `@tambo-ai/react` + `@tambo-ai/core`
 
-**Why Vercel AI SDK:**
+**Why Tambo AI:**
 
-- **Provider-agnostic:** Same API for OpenAI, Anthropic, Google, xAI, and open-source models. Change models with 1 line.
-- **`streamText` + `generateText`:** Streaming AI responses to UI in real-time
-- **Tool calling:** Define tools with Zod schemas — AI can call `moveTask`, `updateDeadline`, `createTask`, `deleteTask` etc.
-- **Multi-step tool calls:** AI executes chained operations (e.g., "move task A to Done and unblock task B")
-- **React hooks:** `useChat`, `useCompletion` for seamless AI chat UI
-- **Framework-agnostic:** Works equally well with Next.js, React, Svelte, Vue
-- **MCP support:** Model Context Protocol for external tool integration
+- **Generative UI toolkit:** Streams props directly into React components — AI doesn't just return text, it renders actual UI
+- **Tool calling with Zod:** Register custom JS functions as tools with Zod schemas — AI can call `moveTask`, `updateDeadline`, `createTask`, `deleteTask` etc.
+- **React-native hooks:** `useTambo()`, `useTamboThreadInput()`, `useTamboThread()` for seamless AI chat UI
+- **MCP support:** First-class Model Context Protocol — connect Supabase MCP for direct database access
+- **Streaming:** Props stream token-by-token into components with `isStreaming` state
+- **Interactable components:** Pre-placed components that persist across conversations (`withTamboInteractable()`)
 
-### LLM Model Strategy
+**Installation:**
+```bash
+npm install @tambo-ai/react @tambo-ai/core
+npm install @modelcontextprotocol/sdk zod zod-to-json-schema
+```
+
+**Why NOT Vercel AI SDK:**
+- Tambo is purpose-built for generative React UI — Vercel AI SDK returns data, you build UI manually
+- Tambo has first-class MCP support for Supabase integration
+- Lower learning curve for React component-based AI interactions
+
+### LLM Model Strategy (via Tambo AI)
 
 | Tier | Model | Use Case | Input $/1M | Output $/1M | Why |
-|---|---|---|---|---|---|
+|---|---|---|---|---|---|---|
 | **Primary (cost-effective)** | GPT-4o-mini (OpenAI) | Daily task operations, simple NL commands | $0.15 | $0.60 | Cheapest reliable model. 128K context. |
 | **Complex reasoning** | Claude Sonnet 4 (Anthropic) | Multi-step task operations, ambiguous requests | $3.00 | $15.00 | Best reasoning quality. 200K context. |
 | **Fallback / Free tier** | Gemini 2.0 Flash (Google) | Prototyping, free-tier production | $0.10 | $0.40 | Cheapest. Free tier (60 RPM). 1M context. |
@@ -192,26 +202,40 @@ Kanban data is **inherently relational**: Boards → Columns → Tasks → Subta
 - Local models are slower, less capable at tool calling for complex Kanban operations  
 - v1 priority is shipping fast — cloud APIs are the right choice
 
-**Why NOT building custom OpenAI client:**
-- Vercel AI SDK handles streaming, tool calling, retries, and multi-provider switching
-- Custom client = reinventing wheels = more bugs = slower delivery
-
 **AI Assistant Tool Definitions (v1 scope):**
 
 ```typescript
-tools: {
-  createTask: tool({ /* boardId, columnId, title, description, dueDate */ }),
-  updateTask: tool({ /* taskId, title?, description?, dueDate? */ }),
-  moveTask: tool({ /* taskId, targetColumnId */ }),
-  deleteTask: tool({ /* taskId */ }),
-  reorderTask: tool({ /* taskId, newPosition */ }),
-  getBoardContext: tool({ /* boardId */ }), // Give AI board state awareness
-}
+const tools: TamboTool[] = [
+  {
+    name: "createTask",
+    description: "Create a new task card",
+    tool: createTask,
+    inputSchema: z.object({ boardId: z.string(), columnId: z.string(), title: z.string(), description: z.string().optional(), dueDate: z.string().optional() }),
+  },
+  {
+    name: "moveTask",
+    description: "Move a task to a different column",
+    tool: moveTask,
+    inputSchema: z.object({ taskId: z.string(), targetColumnId: z.string() }),
+  },
+  {
+    name: "updateTaskDueDate",
+    description: "Update a task's due date",
+    tool: updateTaskDueDate,
+    inputSchema: z.object({ taskId: z.string(), dueDate: z.string() }),
+  },
+  {
+    name: "getBoardContext",
+    description: "Get current board state for AI awareness",
+    tool: getBoardContext,
+    inputSchema: z.object({ boardId: z.string() }),
+  },
+];
 ```
 
 **Cost estimate (v1):** At 100 AI commands/day, ~2K tokens avg per interaction: ~$3-5/month using primarily GPT-4o-mini. Free tier from Gemini covers prototyping.
 
-**Confidence:** **HIGH** — Vercel AI SDK is the de facto standard for TypeScript AI integration. Tool calling is production-proven.
+**Confidence:** **HIGH** — Tambo AI is purpose-built for generative React UI with tool calling and MCP support. Supabase MCP client example available.
 
 ---
 
@@ -271,7 +295,7 @@ app/
 - `react-hook-form@7.x` — Performant form state (minimal re-renders)
 - `zod@3.x` — Schema validation (shared with AI tool definitions, API validation)
 
-**Why:** Forms are critical for task creation/edit. React Hook Form is the lightest option. Zod integrates seamlessly with Vercel AI SDK tool definitions and Drizzle schemas.
+**Why:** Forms are critical for task creation/edit. React Hook Form is the lightest option. Zod integrates seamlessly with Tambo AI tool definitions and Drizzle schemas.
 
 **Confidence:** **HIGH**
 
@@ -349,7 +373,7 @@ app/
 │  🖥  Frontend:    Next.js 15 (App Router) + React 19          │
 │  🎨  Styling:     Tailwind CSS v4 + shadcn/ui (new-york)     │
 │  🖱  Drag & Drop: @dnd-kit/core + @dnd-kit/sortable         │
-│  🤖 AI SDK:      Vercel AI SDK v5 (OpenAI/Claude/Gemini)    │
+│  🤖 AI SDK:      Tambo AI (@tambo-ai/react)                 │
 │  🗄  Database:    PostgreSQL 16 (Supabase)                    │
 │  📦 ORM:         Drizzle ORM + drizzle-kit                  │
 │  🔐 Auth:        Better Auth (primary) / Supabase Auth       │
@@ -382,7 +406,9 @@ app/
 ## 16. References
 
 - [State of JavaScript 2025 — Backend Frameworks](https://2025.stateofjs.com/en-US/libraries/back-end-frameworks/)
-- [Vercel AI SDK Documentation](https://sdk.vercel.ai/docs)
+- [Tambo AI Documentation](https://docs.tambo.co/)
+- [Tambo AI GitHub](https://github.com/tambo-ai/tambo)
+- [Supabase MCP Client Example](https://github.com/tambo-ai/supabase-mcp-client)
 - [Better Auth — Rising Next.js Auth Standard](https://www.pkgpulse.com/blog/better-auth-vs-nextauth-v5-vs-clerk-2026)
 - [dnd-kit — Community Drag-and-Drop Standard](https://www.pkgpulse.com/blog/dnd-kit-vs-react-beautiful-dnd-vs-pragmatic-drag-drop-2026)
 - [Drizzle ORM vs Prisma 2026](https://www.pkgpulse.com/blog/drizzle-orm-vs-prisma-2026-update)
