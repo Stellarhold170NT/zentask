@@ -135,7 +135,9 @@ export default async function BoardPage({ params }: BoardPageProps) {
             )}
           </div>
         </div>
-        <CreateColumnDialog orgSlug={slug} projectId={id} boardId={boardId} />
+        {membership[0]?.role === "owner" || membership[0]?.role === "admin" ? (
+          <CreateColumnDialog orgSlug={slug} projectId={id} boardId={boardId} />
+        ) : null}
       </div>
 
       <div className="flex-1 overflow-x-auto overflow-y-hidden">
@@ -149,6 +151,7 @@ export default async function BoardPage({ params }: BoardPageProps) {
             orgSlug={slug}
             projectId={id}
             boardId={boardId}
+            userRole={membership[0]?.role ?? "member"}
             columns={boardColumns}
             cards={formattedCards}
             members={members}

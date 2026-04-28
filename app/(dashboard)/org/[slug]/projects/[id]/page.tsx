@@ -78,7 +78,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <CreateBoardDialog orgSlug={slug} projectId={id} />
+          {isOwnerOrAdmin && <CreateBoardDialog orgSlug={slug} projectId={id} />}
           {isOwnerOrAdmin && (
             <DeleteProjectAlertDialog
               projectId={project[0].id}
@@ -105,7 +105,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
               </CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center pb-6">
-              <CreateBoardDialog orgSlug={slug} projectId={id} />
+              {isOwnerOrAdmin && <CreateBoardDialog orgSlug={slug} projectId={id} />}
             </CardContent>
           </Card>
         ) : (

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Settings, Users, FolderKanban } from "lucide-react";
+import { ArrowLeft, Settings, Shield } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { db } from "@/lib/db/db";
 import { organizations, organizationMembers } from "@/lib/db/schema";
@@ -57,14 +57,24 @@ export default async function OrgLayout({ children, params }: OrgLayoutProps) {
             <p className="text-sm text-muted-foreground font-mono">/{slug}</p>
           </div>
         </div>
-        {isOwnerOrAdmin && (
-          <Link href={`/org/${slug}/settings`}>
-            <Button variant="outline" size="sm">
-              <Settings className="h-4 w-4 mr-2" />
-              Settings
-            </Button>
-          </Link>
-        )}
+        <div className="flex items-center gap-2">
+          {isOwnerOrAdmin && (
+            <Link href={`/org/${slug}/vault`}>
+              <Button variant="outline" size="sm">
+                <Shield className="h-4 w-4 mr-2" />
+                Vault
+              </Button>
+            </Link>
+          )}
+          {isOwnerOrAdmin && (
+            <Link href={`/org/${slug}/settings`}>
+              <Button variant="outline" size="sm">
+                <Settings className="h-4 w-4 mr-2" />
+                Settings
+              </Button>
+            </Link>
+          )}
+        </div>
       </div>
       {children}
     </div>

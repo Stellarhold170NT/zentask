@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -26,11 +26,23 @@ import { moveCard } from "@/app/(dashboard)/actions";
 import { useDroppable } from "@dnd-kit/core";
 import { useBoardRealtimeContext } from "@/lib/realtime/board-realtime-context";
 import type { BoardRealtimeEvent } from "@/lib/realtime/types";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Search, X, Filter } from "lucide-react";
 
 interface BoardColumnsProps {
   orgSlug: string;
   projectId: string;
   boardId: string;
+  userRole: string;
   columns: {
     id: string;
     name: string;
@@ -61,6 +73,7 @@ function KanbanColumn({
   orgSlug,
   projectId,
   members,
+  userRole,
   onCardClick,
 }: {
   column: { id: string; name: string };
@@ -69,6 +82,7 @@ function KanbanColumn({
   orgSlug: string;
   projectId: string;
   members: BoardColumnsProps["members"];
+  userRole: string;
   onCardClick: (card: BoardColumnsProps["cards"][0]) => void;
 }) {
   const { setNodeRef } = useDroppable({
@@ -76,31 +90,35 @@ function KanbanColumn({
     data: { type: "column", column },
   });
 
+  const canManageColumns = userRole === "owner" || userRole === "admin";
+
   return (
     <div
       ref={setNodeRef}
-      className="min-w-[272px] w-[272px] flex-shrink-0 flex flex-col bg-slate-100 dark:bg-slate-900/50 rounded-xl border shadow-sm"
+      className="min-w-[272px] w-[272px] flex-shrink-0 flex flex-col bg-slate-100 dark:bg-slate-900/50 rounded-xl border shadow-sm group"
     >
       <div className="flex flex-row items-center justify-between px-3 py-2.5 border-b border-slate-200 dark:border-slate-800">
         <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
           {column.name}
         </h3>
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <UpdateColumnDialog
-            columnId={column.id}
-            boardId={boardId}
-            orgSlug={orgSlug}
-            projectId={projectId}
-            currentName={column.name}
-          />
-          <DeleteColumnAlertDialog
-            columnId={column.id}
-            boardId={boardId}
-            orgSlug={orgSlug}
-            projectId={projectId}
-            columnName={column.name}
-          />
-        </div>
+        {canManageColumns && (
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <UpdateColumnDialog
+              columnId={column.id}
+              boardId={boardId}
+              orgSlug={orgSlug}
+              projectId={projectId}
+              currentName={column.name}
+            />
+            <DeleteColumnAlertDialog
+              columnId={column.id}
+              boardId={boardId}
+              orgSlug={orgSlug}
+              projectId={projectId}
+              columnName={column.name}
+            />
+          </div>
+        )}
       </div>
       <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-0">
         <SortableContext
@@ -131,6 +149,7 @@ export function BoardColumns({
   orgSlug,
   projectId,
   boardId,
+  userRole,
   columns,
   cards: initialCards,
   members,
@@ -146,6 +165,11 @@ export function BoardColumns({
   const pendingEventsRef = useRef<BoardRealtimeEvent[]>([]);
   const currentOverColumnRef = useRef<string | null>(null);
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
+  const [labelFilter, setLabelFilter] = useState<string>("all");
+
   const { broadcast, userId, onlineUsers } = useBoardRealtimeContext();
 
   useEffect(() => {
@@ -156,6 +180,43 @@ export function BoardColumns({
     if (isDraggingRef.current) return;
     setCards(initialCards);
   }, [initialCards]);
+
+  const allLabels = useMemo(() => {
+    const labels = new Set<string>();
+    cards.forEach((card) => {
+      card.labels?.forEach((label) => labels.add(label));
+    });
+    return Array.from(labels).sort();
+  }, [cards]);
+
+  const filteredCards = useMemo(() => {
+    return cards.filter((card) => {
+      const matchesSearch =
+        !searchQuery ||
+        card.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (card.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
+      const matchesPriority = priorityFilter === "all" || card.priority === priorityFilter;
+      const matchesAssignee =
+        assigneeFilter === "all" ||
+        (assigneeFilter === "unassigned" ? !card.assigneeId : card.assigneeId === assigneeFilter);
+      const matchesLabel = labelFilter === "all" || card.labels?.includes(labelFilter);
+      return matchesSearch && matchesPriority && matchesAssignee && matchesLabel;
+    });
+  }, [cards, searchQuery, priorityFilter, assigneeFilter, labelFilter]);
+
+  const activeFilterCount = [
+    searchQuery,
+    priorityFilter !== "all" ? priorityFilter : "",
+    assigneeFilter !== "all" ? assigneeFilter : "",
+    labelFilter !== "all" ? labelFilter : "",
+  ].filter(Boolean).length;
+
+  function clearFilters() {
+    setSearchQuery("");
+    setPriorityFilter("all");
+    setAssigneeFilter("all");
+    setLabelFilter("all");
+  }
 
   const { subscribe } = useBoardRealtimeContext();
 
@@ -424,6 +485,69 @@ export function BoardColumns({
           {moveError}
         </div>
       )}
+      <div className="px-4 pb-2 flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search cards..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 h-9"
+          />
+        </div>
+        <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+          <SelectTrigger className="w-[140px] h-9">
+            <SelectValue placeholder="Priority" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All priorities</SelectItem>
+            <SelectItem value="low">Low</SelectItem>
+            <SelectItem value="medium">Medium</SelectItem>
+            <SelectItem value="high">High</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+          <SelectTrigger className="w-[160px] h-9">
+            <SelectValue placeholder="Assignee" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All assignees</SelectItem>
+            <SelectItem value="unassigned">Unassigned</SelectItem>
+            {members.map((m) => (
+              <SelectItem key={m.userId} value={m.userId}>
+                {m.fullName || m.email}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {allLabels.length > 0 && (
+          <Select value={labelFilter} onValueChange={setLabelFilter}>
+            <SelectTrigger className="w-[140px] h-9">
+              <SelectValue placeholder="Label" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All labels</SelectItem>
+              {allLabels.map((label) => (
+                <SelectItem key={label} value={label}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {activeFilterCount > 0 && (
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 gap-1">
+            <X className="h-3.5 w-3.5" />
+            Clear
+            <Badge variant="secondary" className="ml-0.5 text-[10px] h-5 px-1.5">
+              {activeFilterCount}
+            </Badge>
+          </Button>
+        )}
+        <div className="ml-auto text-xs text-muted-foreground">
+          {filteredCards.length} of {cards.length} cards
+        </div>
+      </div>
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
@@ -433,7 +557,7 @@ export function BoardColumns({
       >
         <div className="flex gap-3 h-full p-4">
           {columns.map((column) => {
-            const columnCards = cards.filter((c) => c.columnId === column.id);
+            const columnCards = filteredCards.filter((c) => c.columnId === column.id);
 
             return (
               <KanbanColumn
@@ -444,6 +568,7 @@ export function BoardColumns({
                 orgSlug={orgSlug}
                 projectId={projectId}
                 members={members}
+                userRole={userRole}
                 onCardClick={handleCardClick}
               />
             );

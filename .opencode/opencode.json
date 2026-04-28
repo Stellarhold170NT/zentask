@@ -7,5 +7,18 @@
     "external_directory": {
       "E:/nt170/Zentask/.opencode/get-shit-done/*": "allow"
     }
+  },
+  "mcp": {
+    "stitch": {
+      "type": "local",
+      "command": [
+        "npx",
+        "@_davideast/stitch-mcp",
+        "proxy"
+      ],
+      "environment": {
+        "STITCH_API_KEY": "${STITCH_API_KEY}"
+      }
+    }
   }
 }

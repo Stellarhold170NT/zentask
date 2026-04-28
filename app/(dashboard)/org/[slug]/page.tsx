@@ -139,7 +139,7 @@ export default async function OrgPage({ params }: OrgPageProps) {
             <h2 className="text-lg font-semibold">Projects</h2>
             <Badge variant="secondary" className="text-xs">{orgProjects.length}</Badge>
           </div>
-          <CreateProjectDialog orgSlug={slug} />
+          {isOwnerOrAdmin && <CreateProjectDialog orgSlug={slug} />}
         </div>
 
         {orgProjects.length === 0 ? (
@@ -151,7 +151,7 @@ export default async function OrgPage({ params }: OrgPageProps) {
               </CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center pb-6">
-              <CreateProjectDialog orgSlug={slug} />
+              {isOwnerOrAdmin && <CreateProjectDialog orgSlug={slug} />}
             </CardContent>
           </Card>
         ) : (

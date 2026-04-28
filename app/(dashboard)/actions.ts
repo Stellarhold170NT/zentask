@@ -12,6 +12,8 @@ import {
   boards,
   columns,
   cards,
+  vaultEntries,
+  vaultVersions,
 } from "@/lib/db/schema";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { generateUniqueSlug } from "@/lib/utils/slug";
@@ -398,6 +400,9 @@ export async function createProject(
       .limit(1);
 
     if (membership.length === 0) return { error: "Not a member of this organization" };
+    if (membership[0].role !== "owner" && membership[0].role !== "admin") {
+      return { error: "Only owners and admins can create projects" };
+    }
 
     const [project] = await db
       .insert(projects)
@@ -446,6 +451,9 @@ export async function updateProject(
       .limit(1);
 
     if (membership.length === 0) return { error: "Not a member of this organization" };
+    if (membership[0].role !== "owner" && membership[0].role !== "admin") {
+      return { error: "Only owners and admins can update projects" };
+    }
 
     const projectCheck = await db
       .select()
@@ -555,6 +563,9 @@ export async function createBoard(
       .limit(1);
 
     if (membership.length === 0) return { error: "Not a member of this organization" };
+    if (membership[0].role !== "owner" && membership[0].role !== "admin") {
+      return { error: "Only owners and admins can create boards" };
+    }
 
     const project = await db
       .select()
@@ -618,6 +629,9 @@ export async function updateBoard(
       .limit(1);
 
     if (membership.length === 0) return { error: "Not a member of this organization" };
+    if (membership[0].role !== "owner" && membership[0].role !== "admin") {
+      return { error: "Only owners and admins can update boards" };
+    }
 
     const board = await db
       .select()
@@ -745,6 +759,9 @@ export async function createColumn(
       .limit(1);
 
     if (membership.length === 0) return { error: "Not a member of this organization" };
+    if (membership[0].role !== "owner" && membership[0].role !== "admin") {
+      return { error: "Only owners and admins can create columns" };
+    }
 
     const board = await db
       .select()
@@ -814,6 +831,9 @@ export async function updateColumn(
       .limit(1);
 
     if (membership.length === 0) return { error: "Not a member of this organization" };
+    if (membership[0].role !== "owner" && membership[0].role !== "admin") {
+      return { error: "Only owners and admins can update columns" };
+    }
 
     const column = await db
       .select()
@@ -880,6 +900,9 @@ export async function deleteColumn(
       .limit(1);
 
     if (membership.length === 0) return { error: "Not a member of this organization" };
+    if (membership[0].role !== "owner" && membership[0].role !== "admin") {
+      return { error: "Only owners and admins can delete columns" };
+    }
 
     const column = await db
       .select()
@@ -1272,5 +1295,291 @@ export async function moveCard(
   } catch (err) {
     console.error("Failed to move card:", err);
     return { error: "Failed to move card. Please try again." };
+  }
+}
+
+export async function getVaultEntries(orgSlug: string) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+
+  try {
+    const org = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.slug, orgSlug))
+      .limit(1);
+
+    if (org.length === 0) return { error: "Organization not found" };
+
+    const membership = await db
+      .select()
+      .from(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.organizationId, org[0].id),
+          eq(organizationMembers.userId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (membership.length === 0) return { error: "Not a member of this organization" };
+    if (membership[0].role !== "owner" && membership[0].role !== "admin") {
+      return { error: "Only owners and admins can view vault" };
+    }
+
+    const entries = await db
+      .select({
+        id: vaultEntries.id,
+        key: vaultEntries.key,
+        value: vaultEntries.value,
+        projectId: vaultEntries.projectId,
+        createdAt: vaultEntries.createdAt,
+        updatedAt: vaultEntries.updatedAt,
+      })
+      .from(vaultEntries)
+      .where(eq(vaultEntries.organizationId, org[0].id))
+      .orderBy(vaultEntries.key);
+
+    return { entries };
+  } catch (err) {
+    console.error("Failed to get vault entries:", err);
+    return { error: "Failed to get vault entries. Please try again." };
+  }
+}
+
+export async function createVaultEntry(
+  orgSlug: string,
+  key: string,
+  value: string,
+  projectId?: string
+) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+
+  if (!key || key.trim().length < 1) {
+    return { error: "Key is required" };
+  }
+  if (!value || value.trim().length < 1) {
+    return { error: "Value is required" };
+  }
+
+  try {
+    const org = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.slug, orgSlug))
+      .limit(1);
+
+    if (org.length === 0) return { error: "Organization not found" };
+
+    const membership = await db
+      .select()
+      .from(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.organizationId, org[0].id),
+          eq(organizationMembers.userId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (membership.length === 0) return { error: "Not a member of this organization" };
+    if (membership[0].role !== "owner" && membership[0].role !== "admin") {
+      return { error: "Only owners and admins can manage vault" };
+    }
+
+    if (projectId) {
+      const projectCheck = await db
+        .select()
+        .from(projects)
+        .where(and(eq(projects.id, projectId), eq(projects.organizationId, org[0].id)))
+        .limit(1);
+      if (projectCheck.length === 0) {
+        return { error: "Project not found in this organization" };
+      }
+    }
+
+    const [entry] = await db
+      .insert(vaultEntries)
+      .values({
+        organizationId: org[0].id,
+        projectId: projectId || null,
+        key: key.trim(),
+        value: value.trim(),
+      })
+      .returning();
+
+    await db.insert(vaultVersions).values({
+      vaultEntryId: entry.id,
+      value: value.trim(),
+      changedBy: user.email,
+    });
+
+    revalidatePath(`/org/${orgSlug}/vault`);
+    return { entryId: entry.id };
+  } catch (err) {
+    console.error("Failed to create vault entry:", err);
+    return { error: "Failed to create vault entry. Please try again." };
+  }
+}
+
+export async function updateVaultEntry(
+  entryId: string,
+  orgSlug: string,
+  value: string
+) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+
+  if (!value || value.trim().length < 1) {
+    return { error: "Value is required" };
+  }
+
+  try {
+    const org = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.slug, orgSlug))
+      .limit(1);
+
+    if (org.length === 0) return { error: "Organization not found" };
+
+    const membership = await db
+      .select()
+      .from(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.organizationId, org[0].id),
+          eq(organizationMembers.userId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (membership.length === 0) return { error: "Not a member of this organization" };
+    if (membership[0].role !== "owner" && membership[0].role !== "admin") {
+      return { error: "Only owners and admins can manage vault" };
+    }
+
+    const entry = await db
+      .select()
+      .from(vaultEntries)
+      .where(and(eq(vaultEntries.id, entryId), eq(vaultEntries.organizationId, org[0].id)))
+      .limit(1);
+
+    if (entry.length === 0) return { error: "Vault entry not found" };
+
+    await db
+      .update(vaultEntries)
+      .set({ value: value.trim(), updatedAt: new Date() })
+      .where(eq(vaultEntries.id, entryId));
+
+    await db.insert(vaultVersions).values({
+      vaultEntryId: entryId,
+      value: value.trim(),
+      changedBy: user.email,
+    });
+
+    revalidatePath(`/org/${orgSlug}/vault`);
+    return { success: true };
+  } catch (err) {
+    console.error("Failed to update vault entry:", err);
+    return { error: "Failed to update vault entry. Please try again." };
+  }
+}
+
+export async function deleteVaultEntry(entryId: string, orgSlug: string) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+
+  try {
+    const org = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.slug, orgSlug))
+      .limit(1);
+
+    if (org.length === 0) return { error: "Organization not found" };
+
+    const membership = await db
+      .select()
+      .from(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.organizationId, org[0].id),
+          eq(organizationMembers.userId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (membership.length === 0) return { error: "Not a member of this organization" };
+    if (membership[0].role !== "owner" && membership[0].role !== "admin") {
+      return { error: "Only owners and admins can manage vault" };
+    }
+
+    const entry = await db
+      .select()
+      .from(vaultEntries)
+      .where(and(eq(vaultEntries.id, entryId), eq(vaultEntries.organizationId, org[0].id)))
+      .limit(1);
+
+    if (entry.length === 0) return { error: "Vault entry not found" };
+
+    await db.delete(vaultEntries).where(eq(vaultEntries.id, entryId));
+
+    revalidatePath(`/org/${orgSlug}/vault`);
+    return { success: true };
+  } catch (err) {
+    console.error("Failed to delete vault entry:", err);
+    return { error: "Failed to delete vault entry. Please try again." };
+  }
+}
+
+export async function getVaultVersions(entryId: string, orgSlug: string) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+
+  try {
+    const org = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.slug, orgSlug))
+      .limit(1);
+
+    if (org.length === 0) return { error: "Organization not found" };
+
+    const membership = await db
+      .select()
+      .from(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.organizationId, org[0].id),
+          eq(organizationMembers.userId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (membership.length === 0) return { error: "Not a member of this organization" };
+    if (membership[0].role !== "owner" && membership[0].role !== "admin") {
+      return { error: "Only owners and admins can view vault" };
+    }
+
+    const entry = await db
+      .select()
+      .from(vaultEntries)
+      .where(and(eq(vaultEntries.id, entryId), eq(vaultEntries.organizationId, org[0].id)))
+      .limit(1);
+
+    if (entry.length === 0) return { error: "Vault entry not found" };
+
+    const versions = await db
+      .select()
+      .from(vaultVersions)
+      .where(eq(vaultVersions.vaultEntryId, entryId))
+      .orderBy(vaultVersions.createdAt);
+
+    return { versions };
+  } catch (err) {
+    console.error("Failed to get vault versions:", err);
+    return { error: "Failed to get vault versions. Please try again." };
   }
 }
