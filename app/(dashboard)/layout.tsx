@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { logout } from "@/app/(auth)/actions";
-import { Button } from "@/components/ui/button";
+import { LogoutButton } from "@/components/auth/logout-button";
 
 export default function DashboardLayout({
   children,
@@ -14,11 +13,7 @@ export default function DashboardLayout({
           <Link href="/organizations" className="font-bold text-lg">
             ZenTask
           </Link>
-          <form action={logout}>
-            <Button type="submit" variant="ghost" size="sm">
-              Log out
-            </Button>
-          </form>
+          <LogoutButton />
         </div>
       </header>
       <main className="container mx-auto px-4 py-6">{children}</main>

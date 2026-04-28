@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { db } from "@/lib/db/db";
+import { profiles } from "@/lib/db/schema";
 
 export async function login(email: string, password: string) {
   const supabase = await createClient();
@@ -23,7 +25,7 @@ export async function login(email: string, password: string) {
 export async function signup(email: string, password: string) {
   const supabase = await createClient();
 
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -35,16 +37,27 @@ export async function signup(email: string, password: string) {
     return { error: error.message };
   }
 
+  if (data.user) {
+    try {
+      await db.insert(profiles).values({
+        userId: data.user.id,
+        email: data.user.email ?? email,
+      });
+    } catch {
+      return { error: "Account created but profile setup failed. Please contact support." };
+    }
+  }
+
   return { error: null };
 }
 
-export async function logout(): Promise<void> {
+export async function logout() {
   const supabase = await createClient();
 
   const { error } = await supabase.auth.signOut();
 
   if (error) {
-    throw new Error(error.message);
+    console.error("Logout error:", error.message);
   }
 
   revalidatePath("/", "layout");

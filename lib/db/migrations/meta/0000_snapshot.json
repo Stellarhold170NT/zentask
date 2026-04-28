@@ -1,5 +1,5 @@
 {
-  "id": "6ee5d128-8355-4581-af9d-769615f318c0",
+  "id": "97e60b7e-29e2-4b2d-a2ea-7290bd13cb5f",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -48,7 +48,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "boards_project_id_idx": {
+          "name": "boards_project_id_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "boards_project_id_projects_id_fk": {
           "name": "boards_project_id_projects_id_fk",
@@ -147,7 +163,38 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "cards_column_id_idx": {
+          "name": "cards_column_id_idx",
+          "columns": [
+            {
+              "expression": "column_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cards_assignee_id_idx": {
+          "name": "cards_assignee_id_idx",
+          "columns": [
+            {
+              "expression": "assignee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "cards_column_id_columns_id_fk": {
           "name": "cards_column_id_columns_id_fk",
@@ -214,7 +261,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "columns_board_id_idx": {
+          "name": "columns_board_id_idx",
+          "columns": [
+            {
+              "expression": "board_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "columns_board_id_boards_id_fk": {
           "name": "columns_board_id_boards_id_fk",
@@ -274,7 +337,38 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "org_members_org_id_idx": {
+          "name": "org_members_org_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "org_members_user_id_idx": {
+          "name": "org_members_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "organization_members_organization_id_organizations_id_fk": {
           "name": "organization_members_organization_id_organizations_id_fk",
@@ -340,7 +434,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "organizations_slug_idx": {
+          "name": "organizations_slug_idx",
+          "columns": [
+            {
+              "expression": "slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
@@ -406,7 +516,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "profiles_user_id_idx": {
+          "name": "profiles_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
@@ -466,7 +592,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "projects_org_id_idx": {
+          "name": "projects_org_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "projects_organization_id_organizations_id_fk": {
           "name": "projects_organization_id_organizations_id_fk",
@@ -538,7 +680,38 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "vault_entries_org_id_idx": {
+          "name": "vault_entries_org_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "vault_entries_project_id_idx": {
+          "name": "vault_entries_project_id_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "vault_entries_organization_id_organizations_id_fk": {
           "name": "vault_entries_organization_id_organizations_id_fk",
@@ -610,7 +783,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "vault_versions_entry_id_idx": {
+          "name": "vault_versions_entry_id_idx",
+          "columns": [
+            {
+              "expression": "vault_entry_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "vault_versions_vault_entry_id_vault_entries_id_fk": {
           "name": "vault_versions_vault_entry_id_vault_entries_id_fk",

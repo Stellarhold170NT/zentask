@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, integer, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, integer, boolean, jsonb, index } from "drizzle-orm/pg-core";
 
 export const profiles = pgTable("profiles", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -8,7 +8,9 @@ export const profiles = pgTable("profiles", {
   avatarUrl: text("avatar_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-});
+}, (table) => [
+  index("profiles_user_id_idx").on(table.userId),
+]);
 
 export const organizations = pgTable("organizations", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -17,7 +19,9 @@ export const organizations = pgTable("organizations", {
   description: text("description"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-});
+}, (table) => [
+  index("organizations_slug_idx").on(table.slug),
+]);
 
 export const organizationMembers = pgTable("organization_members", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -25,7 +29,10 @@ export const organizationMembers = pgTable("organization_members", {
   userId: text("user_id").notNull(),
   role: text("role", { enum: ["owner", "admin", "member"] }).notNull().default("member"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-});
+}, (table) => [
+  index("org_members_org_id_idx").on(table.organizationId),
+  index("org_members_user_id_idx").on(table.userId),
+]);
 
 export const projects = pgTable("projects", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -34,7 +41,9 @@ export const projects = pgTable("projects", {
   description: text("description"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-});
+}, (table) => [
+  index("projects_org_id_idx").on(table.organizationId),
+]);
 
 export const boards = pgTable("boards", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -43,7 +52,9 @@ export const boards = pgTable("boards", {
   description: text("description"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-});
+}, (table) => [
+  index("boards_project_id_idx").on(table.projectId),
+]);
 
 export const columns = pgTable("columns", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -52,7 +63,9 @@ export const columns = pgTable("columns", {
   order: integer("order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-});
+}, (table) => [
+  index("columns_board_id_idx").on(table.boardId),
+]);
 
 export const cards = pgTable("cards", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -66,7 +79,10 @@ export const cards = pgTable("cards", {
   order: integer("order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-});
+}, (table) => [
+  index("cards_column_id_idx").on(table.columnId),
+  index("cards_assignee_id_idx").on(table.assigneeId),
+]);
 
 export const vaultEntries = pgTable("vault_entries", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -76,7 +92,10 @@ export const vaultEntries = pgTable("vault_entries", {
   value: text("value").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-});
+}, (table) => [
+  index("vault_entries_org_id_idx").on(table.organizationId),
+  index("vault_entries_project_id_idx").on(table.projectId),
+]);
 
 export const vaultVersions = pgTable("vault_versions", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -84,4 +103,6 @@ export const vaultVersions = pgTable("vault_versions", {
   value: text("value").notNull(),
   changedBy: text("changed_by").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-});
+}, (table) => [
+  index("vault_versions_entry_id_idx").on(table.vaultEntryId),
+]);
