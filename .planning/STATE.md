@@ -19,7 +19,7 @@ See: `.planning/PROJECT.md` (updated 2025-04-28)
 
 | Phase | Status | Requirements | Completed |
 |-------|--------|--------------|-----------|
-| 1: Project Setup & Auth | ◆ Context Ready | AUTH-01..05 | 0/5 |
+| 1: Project Setup & Auth | ◆ Code Complete | AUTH-01..05 | 5/5 |
 | 2: Organization & Project | ○ Pending | ORG-01..03, PROJ-01..03 | 0/6 |
 | 3: Board & Column Core | ○ Pending | BOARD-01..04, COL-01..04 | 0/8 |
 | 4: Card CRUD & Metadata | ○ Pending | CARD-01..08 | 0/8 |
@@ -30,7 +30,7 @@ See: `.planning/PROJECT.md` (updated 2025-04-28)
 | 9: Vault (Env Manager) | ○ Pending | VAULT-01..04 | 0/4 |
 | 10: Search, Filter & Polish | ○ Pending | SRCH-01..05, UI-01..05 | 0/10 |
 
-**Overall:** 0/61 requirements complete
+**Overall:** 5/61 requirements complete
 
 ---
 
@@ -49,7 +49,7 @@ See: `.planning/PROJECT.md` (updated 2025-04-28)
 
 ## Blockers
 
-None.
+- **Supabase project needed** to apply Drizzle migration and test auth flows. `.env.local` has placeholder values.
 
 ---
 
