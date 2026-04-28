@@ -61,7 +61,9 @@ export function BoardAIWrapper({
           const matches = cards.filter(
             (c) => c.title.toLowerCase() === cardTitle.toLowerCase()
           );
-          if (matches.length === 0) return { error: `Card "${cardTitle}" not found` };
+          if (matches.length === 0) {
+            return { error: `Card "${cardTitle}" not found` };
+          }
           if (matches.length > 1) {
             return {
               error: `Multiple cards match "${cardTitle}". Please be more specific.`,
