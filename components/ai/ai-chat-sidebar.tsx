@@ -28,12 +28,13 @@ interface AIChatSidebarProps {
 
 export function AIChatSidebar({ columns, cards, members }: AIChatSidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const { thread, streaming, isIdle, startNewThread } = useTambo();
-  const { value, setValue, submit } = useTamboThreadInput();
+  const [isResetting, setIsResetting] = useState(false);
+  const { thread, streaming, startNewThread } = useTambo();
+  const { value, setValue, submit, isPending } = useTamboThreadInput();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const messages = thread?.messages ?? [];
-  const isLoading = streaming || !isIdle;
+  const isLoading = streaming || isPending;
 
   const apiKeyMissing =
     !process.env.NEXT_PUBLIC_TAMBO_API_KEY ||
@@ -47,6 +48,18 @@ export function AIChatSidebar({ columns, cards, members }: AIChatSidebarProps) {
     e.preventDefault();
     if (!value.trim() || isLoading) return;
     await submit();
+  };
+
+  const handleNewThread = async () => {
+    if (isResetting) return;
+    setIsResetting(true);
+    try {
+      startNewThread();
+    } catch (err) {
+      console.error("Failed to start new thread:", err);
+    } finally {
+      setTimeout(() => setIsResetting(false), 300);
+    }
   };
 
   if (!isOpen) {
@@ -71,8 +84,8 @@ export function AIChatSidebar({ columns, cards, members }: AIChatSidebarProps) {
           <h2 className="font-semibold">AI Assistant</h2>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" onClick={startNewThread} className="h-8 px-2">
-            New
+          <Button variant="ghost" size="sm" onClick={handleNewThread} disabled={isResetting} className="h-8 px-2">
+            {isResetting ? "..." : "New"}
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setIsOpen(false)} className="h-8 w-8 p-0">
             <X className="h-4 w-4" />
