@@ -320,10 +320,9 @@ export function BoardColumns({
     const overId = over.id as string;
     console.log("[Realtime] Drag:", { activeId, overId });
 
-    const currentCards = cardsRef.current;
-    const activeCard = currentCards.find((c) => c.id === activeId);
-    if (!activeCard) {
-      console.log("[Realtime] Active card not found");
+    const originalCard = snapshotRef.current.find((c) => c.id === activeId);
+    if (!originalCard) {
+      console.log("[Realtime] Original card not found in snapshot");
       isDraggingRef.current = false;
       currentOverColumnRef.current = null;
       const pending = pendingEventsRef.current;
@@ -333,9 +332,9 @@ export function BoardColumns({
     }
 
     const targetColumnId = currentOverColumnRef.current;
-    console.log("[Realtime] Target column from dragOver:", targetColumnId, "Active card column:", activeCard.columnId);
+    console.log("[Realtime] Target column from dragOver:", targetColumnId, "Original card column:", originalCard.columnId);
 
-    if (!targetColumnId || activeCard.columnId === targetColumnId) {
+    if (!targetColumnId || originalCard.columnId === targetColumnId) {
       console.log("[Realtime] Same column or no target, skipping server call");
       isDraggingRef.current = false;
       currentOverColumnRef.current = null;
@@ -345,7 +344,7 @@ export function BoardColumns({
       return;
     }
 
-    const targetCards = currentCards.filter((c) => c.columnId === targetColumnId);
+    const targetCards = cardsRef.current.filter((c) => c.columnId === targetColumnId);
     const targetIndex = targetCards.length;
     console.log("[Realtime] Calling moveCard...", { activeId, targetColumnId, targetIndex });
 
@@ -364,7 +363,7 @@ export function BoardColumns({
           userId,
           timestamp: Date.now(),
           cardId: activeId,
-          fromColumnId: activeCard.columnId,
+          fromColumnId: originalCard.columnId,
           toColumnId: targetColumnId,
           newOrder: targetIndex,
         });
