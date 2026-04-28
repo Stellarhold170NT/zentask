@@ -19,7 +19,7 @@ See: `.planning/PROJECT.md` (updated 2025-04-28)
 
 | Phase | Status | Requirements | Completed |
 |-------|--------|--------------|-----------|
-| 1: Project Setup & Auth | ○ Pending | AUTH-01..05 | 0/5 |
+| 1: Project Setup & Auth | ◆ Context Ready | AUTH-01..05 | 0/5 |
 | 2: Organization & Project | ○ Pending | ORG-01..03, PROJ-01..03 | 0/6 |
 | 3: Board & Column Core | ○ Pending | BOARD-01..04, COL-01..04 | 0/8 |
 | 4: Card CRUD & Metadata | ○ Pending | CARD-01..08 | 0/8 |
