@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, integer, boolean, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, integer, boolean, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const profiles = pgTable("profiles", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -32,6 +32,7 @@ export const organizationMembers = pgTable("organization_members", {
 }, (table) => [
   index("org_members_org_id_idx").on(table.organizationId),
   index("org_members_user_id_idx").on(table.userId),
+  uniqueIndex("org_members_org_user_unique_idx").on(table.organizationId, table.userId),
 ]);
 
 export const projects = pgTable("projects", {

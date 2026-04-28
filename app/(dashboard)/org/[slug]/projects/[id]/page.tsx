@@ -1,13 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Layout } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { db } from "@/lib/db/db";
-import { organizations, organizationMembers, projects } from "@/lib/db/schema";
+import { organizations, organizationMembers, projects, boards } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { DeleteProjectAlertDialog } from "@/components/projects/delete-project-alert-dialog";
+import { CreateBoardDialog } from "@/components/boards/create-board-dialog";
+import { UpdateBoardDialog } from "@/components/boards/update-board-dialog";
+import { DeleteBoardAlertDialog } from "@/components/boards/delete-board-alert-dialog";
 
 export const dynamic = "force-dynamic";
 
@@ -51,46 +55,95 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
 
   const isOwnerOrAdmin = membership[0].role === "owner" || membership[0].role === "admin";
 
+  const projectBoards = await db
+    .select()
+    .from(boards)
+    .where(eq(boards.projectId, id))
+    .orderBy(boards.createdAt);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <Link href={`/org/${slug}`}>
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold">{project[0].name}</h1>
+            <h1 className="text-2xl font-bold">{project[0].name}</h1>
             {project[0].description && (
               <p className="text-sm text-muted-foreground">{project[0].description}</p>
             )}
           </div>
         </div>
-        {isOwnerOrAdmin && (
-          <DeleteProjectAlertDialog
-            projectId={project[0].id}
-            orgSlug={slug}
-            projectName={project[0].name}
-          />
-        )}
+        <div className="flex items-center gap-2">
+          <CreateBoardDialog orgSlug={slug} projectId={id} />
+          {isOwnerOrAdmin && (
+            <DeleteProjectAlertDialog
+              projectId={project[0].id}
+              orgSlug={slug}
+              projectName={project[0].name}
+            />
+          )}
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Kanban Board</CardTitle>
-          <CardDescription>
-            Boards will be implemented in Phase 3.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">
-            This is a placeholder for the Kanban board. In the next phase, you will be able to create boards,
-            columns, and cards for this project.
-          </p>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Layout className="h-5 w-5 text-muted-foreground" />
+          <h2 className="text-lg font-semibold">Boards</h2>
+          <Badge variant="secondary" className="text-xs">{projectBoards.length}</Badge>
+        </div>
+
+        {projectBoards.length === 0 ? (
+          <Card className="border-dashed">
+            <CardHeader className="text-center">
+              <CardTitle className="text-base">No boards yet</CardTitle>
+              <CardDescription>
+                Create your first board to start organizing tasks.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex justify-center pb-6">
+              <CreateBoardDialog orgSlug={slug} projectId={id} />
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {projectBoards.map((board) => (
+              <Card key={board.id} className="group hover:shadow-md hover:border-primary/50 transition-all duration-200">
+                <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
+                  <Link href={`/org/${slug}/projects/${id}/boards/${board.id}`} className="flex-1 cursor-pointer min-w-0">
+                    <div>
+                      <CardTitle className="text-base font-semibold group-hover:text-primary transition-colors">{board.name}</CardTitle>
+                      <CardDescription className="line-clamp-2 text-xs mt-1">
+                        {board.description || "No description"}
+                      </CardDescription>
+                    </div>
+                  </Link>
+                  {isOwnerOrAdmin && (
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <UpdateBoardDialog
+                        boardId={board.id}
+                        orgSlug={slug}
+                        projectId={id}
+                        currentName={board.name}
+                        currentDescription={board.description}
+                      />
+                      <DeleteBoardAlertDialog
+                        boardId={board.id}
+                        orgSlug={slug}
+                        projectId={id}
+                        boardName={board.name}
+                      />
+                    </div>
+                  )}
+                </CardHeader>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

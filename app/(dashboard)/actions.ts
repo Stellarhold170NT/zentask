@@ -9,6 +9,9 @@ import {
   organizationMembers,
   projects,
   profiles,
+  boards,
+  columns,
+  cards,
 } from "@/lib/db/schema";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { generateUniqueSlug } from "@/lib/utils/slug";
@@ -330,27 +333,29 @@ export async function updateMemberRole(
       return { error: "Only owners can change member roles" };
     }
 
-    if (role === "owner") {
-      await db
+    await db.transaction(async (tx) => {
+      if (role === "owner") {
+        await tx
+          .update(organizationMembers)
+          .set({ role: "admin" })
+          .where(
+            and(
+              eq(organizationMembers.organizationId, org[0].id),
+              eq(organizationMembers.userId, user.id)
+            )
+          );
+      }
+
+      await tx
         .update(organizationMembers)
-        .set({ role: "admin" })
+        .set({ role })
         .where(
           and(
             eq(organizationMembers.organizationId, org[0].id),
-            eq(organizationMembers.userId, user.id)
+            eq(organizationMembers.userId, userId)
           )
         );
-    }
-
-    await db
-      .update(organizationMembers)
-      .set({ role })
-      .where(
-        and(
-          eq(organizationMembers.organizationId, org[0].id),
-          eq(organizationMembers.userId, userId)
-        )
-      );
+    });
 
     revalidatePath(`/org/${orgSlug}`);
     return { success: true };
@@ -442,6 +447,14 @@ export async function updateProject(
 
     if (membership.length === 0) return { error: "Not a member of this organization" };
 
+    const projectCheck = await db
+      .select()
+      .from(projects)
+      .where(and(eq(projects.id, projectId), eq(projects.organizationId, org[0].id)))
+      .limit(1);
+
+    if (projectCheck.length === 0) return { error: "Project not found in this organization" };
+
     const updates: Record<string, unknown> = {};
     if (name !== undefined) updates.name = name.trim();
     if (description !== undefined) updates.description = description.trim() || null;
@@ -490,6 +503,14 @@ export async function deleteProject(projectId: string, orgSlug: string) {
       return { error: "Only owners and admins can delete projects" };
     }
 
+    const projectCheck = await db
+      .select()
+      .from(projects)
+      .where(and(eq(projects.id, projectId), eq(projects.organizationId, org[0].id)))
+      .limit(1);
+
+    if (projectCheck.length === 0) return { error: "Project not found in this organization" };
+
     await db.delete(projects).where(eq(projects.id, projectId));
 
     revalidatePath(`/org/${orgSlug}`);
@@ -497,5 +518,759 @@ export async function deleteProject(projectId: string, orgSlug: string) {
   } catch (err) {
     console.error("Failed to delete project:", err);
     return { error: "Failed to delete project. Please try again." };
+  }
+}
+
+export async function createBoard(
+  orgSlug: string,
+  projectId: string,
+  name: string,
+  description?: string
+) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+
+  if (!name || name.trim().length < 1) {
+    return { error: "Board name is required" };
+  }
+
+  try {
+    const org = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.slug, orgSlug))
+      .limit(1);
+
+    if (org.length === 0) return { error: "Organization not found" };
+
+    const membership = await db
+      .select()
+      .from(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.organizationId, org[0].id),
+          eq(organizationMembers.userId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (membership.length === 0) return { error: "Not a member of this organization" };
+
+    const project = await db
+      .select()
+      .from(projects)
+      .where(and(eq(projects.id, projectId), eq(projects.organizationId, org[0].id)))
+      .limit(1);
+
+    if (project.length === 0) return { error: "Project not found" };
+
+    const [board] = await db
+      .insert(boards)
+      .values({
+        projectId,
+        name: name.trim(),
+        description: description?.trim() || null,
+      })
+      .returning();
+
+    await db.insert(columns).values([
+      { boardId: board.id, name: "To Do", order: 0 },
+      { boardId: board.id, name: "In Progress", order: 1 },
+      { boardId: board.id, name: "Done", order: 2 },
+    ]);
+
+    revalidatePath(`/org/${orgSlug}/projects/${projectId}`);
+    return { boardId: board.id };
+  } catch (err) {
+    console.error("Failed to create board:", err);
+    return { error: "Failed to create board. Please try again." };
+  }
+}
+
+export async function updateBoard(
+  boardId: string,
+  orgSlug: string,
+  projectId: string,
+  name?: string,
+  description?: string
+) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+
+  try {
+    const org = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.slug, orgSlug))
+      .limit(1);
+
+    if (org.length === 0) return { error: "Organization not found" };
+
+    const membership = await db
+      .select()
+      .from(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.organizationId, org[0].id),
+          eq(organizationMembers.userId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (membership.length === 0) return { error: "Not a member of this organization" };
+
+    const board = await db
+      .select()
+      .from(boards)
+      .innerJoin(projects, eq(boards.projectId, projects.id))
+      .where(
+        and(
+          eq(boards.id, boardId),
+          eq(projects.id, projectId),
+          eq(projects.organizationId, org[0].id)
+        )
+      )
+      .limit(1);
+
+    if (board.length === 0) return { error: "Board not found" };
+
+    const updates: Record<string, unknown> = {};
+    if (name !== undefined) updates.name = name.trim();
+    if (description !== undefined) updates.description = description.trim() || null;
+
+    if (Object.keys(updates).length > 0) {
+      await db
+        .update(boards)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(boards.id, boardId));
+    }
+
+    revalidatePath(`/org/${orgSlug}/projects/${projectId}`);
+    return { success: true };
+  } catch (err) {
+    console.error("Failed to update board:", err);
+    return { error: "Failed to update board. Please try again." };
+  }
+}
+
+export async function deleteBoard(
+  boardId: string,
+  orgSlug: string,
+  projectId: string
+) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+
+  try {
+    const org = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.slug, orgSlug))
+      .limit(1);
+
+    if (org.length === 0) return { error: "Organization not found" };
+
+    const membership = await db
+      .select()
+      .from(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.organizationId, org[0].id),
+          eq(organizationMembers.userId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (membership.length === 0) return { error: "Not a member of this organization" };
+    if (membership[0].role !== "owner" && membership[0].role !== "admin") {
+      return { error: "Only owners and admins can delete boards" };
+    }
+
+    const board = await db
+      .select()
+      .from(boards)
+      .innerJoin(projects, eq(boards.projectId, projects.id))
+      .where(
+        and(
+          eq(boards.id, boardId),
+          eq(projects.id, projectId),
+          eq(projects.organizationId, org[0].id)
+        )
+      )
+      .limit(1);
+
+    if (board.length === 0) return { error: "Board not found" };
+
+    await db.delete(boards).where(eq(boards.id, boardId));
+
+    revalidatePath(`/org/${orgSlug}/projects/${projectId}`);
+    return { success: true };
+  } catch (err) {
+    console.error("Failed to delete board:", err);
+    return { error: "Failed to delete board. Please try again." };
+  }
+}
+
+export async function createColumn(
+  boardId: string,
+  orgSlug: string,
+  projectId: string,
+  name: string
+) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+
+  if (!name || name.trim().length < 1) {
+    return { error: "Column name is required" };
+  }
+
+  try {
+    const org = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.slug, orgSlug))
+      .limit(1);
+
+    if (org.length === 0) return { error: "Organization not found" };
+
+    const membership = await db
+      .select()
+      .from(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.organizationId, org[0].id),
+          eq(organizationMembers.userId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (membership.length === 0) return { error: "Not a member of this organization" };
+
+    const board = await db
+      .select()
+      .from(boards)
+      .innerJoin(projects, eq(boards.projectId, projects.id))
+      .where(
+        and(
+          eq(boards.id, boardId),
+          eq(projects.id, projectId),
+          eq(projects.organizationId, org[0].id)
+        )
+      )
+      .limit(1);
+
+    if (board.length === 0) return { error: "Board not found" };
+
+    const existingColumns = await db
+      .select()
+      .from(columns)
+      .where(eq(columns.boardId, boardId));
+
+    const [column] = await db
+      .insert(columns)
+      .values({
+        boardId,
+        name: name.trim(),
+        order: existingColumns.length,
+      })
+      .returning();
+
+    revalidatePath(`/org/${orgSlug}/projects/${projectId}/boards/${boardId}`);
+    return { columnId: column.id };
+  } catch (err) {
+    console.error("Failed to create column:", err);
+    return { error: "Failed to create column. Please try again." };
+  }
+}
+
+export async function updateColumn(
+  columnId: string,
+  boardId: string,
+  orgSlug: string,
+  projectId: string,
+  name?: string
+) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+
+  try {
+    const org = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.slug, orgSlug))
+      .limit(1);
+
+    if (org.length === 0) return { error: "Organization not found" };
+
+    const membership = await db
+      .select()
+      .from(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.organizationId, org[0].id),
+          eq(organizationMembers.userId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (membership.length === 0) return { error: "Not a member of this organization" };
+
+    const column = await db
+      .select()
+      .from(columns)
+      .innerJoin(boards, eq(columns.boardId, boards.id))
+      .innerJoin(projects, eq(boards.projectId, projects.id))
+      .where(
+        and(
+          eq(columns.id, columnId),
+          eq(boards.id, boardId),
+          eq(projects.id, projectId),
+          eq(projects.organizationId, org[0].id)
+        )
+      )
+      .limit(1);
+
+    if (column.length === 0) return { error: "Column not found" };
+
+    const updates: Record<string, unknown> = {};
+    if (name !== undefined) updates.name = name.trim();
+
+    if (Object.keys(updates).length > 0) {
+      await db
+        .update(columns)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(columns.id, columnId));
+    }
+
+    revalidatePath(`/org/${orgSlug}/projects/${projectId}/boards/${boardId}`);
+    return { success: true };
+  } catch (err) {
+    console.error("Failed to update column:", err);
+    return { error: "Failed to update column. Please try again." };
+  }
+}
+
+export async function deleteColumn(
+  columnId: string,
+  boardId: string,
+  orgSlug: string,
+  projectId: string
+) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+
+  try {
+    const org = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.slug, orgSlug))
+      .limit(1);
+
+    if (org.length === 0) return { error: "Organization not found" };
+
+    const membership = await db
+      .select()
+      .from(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.organizationId, org[0].id),
+          eq(organizationMembers.userId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (membership.length === 0) return { error: "Not a member of this organization" };
+
+    const column = await db
+      .select()
+      .from(columns)
+      .innerJoin(boards, eq(columns.boardId, boards.id))
+      .innerJoin(projects, eq(boards.projectId, projects.id))
+      .where(
+        and(
+          eq(columns.id, columnId),
+          eq(boards.id, boardId),
+          eq(projects.id, projectId),
+          eq(projects.organizationId, org[0].id)
+        )
+      )
+      .limit(1);
+
+    if (column.length === 0) return { error: "Column not found" };
+
+    await db.delete(columns).where(eq(columns.id, columnId));
+
+    revalidatePath(`/org/${orgSlug}/projects/${projectId}/boards/${boardId}`);
+    return { success: true };
+  } catch (err) {
+    console.error("Failed to delete column:", err);
+    return { error: "Failed to delete column. Please try again." };
+  }
+}
+
+export async function createCard(
+  columnId: string,
+  boardId: string,
+  orgSlug: string,
+  projectId: string,
+  title: string,
+  description?: string,
+  priority?: "low" | "medium" | "high",
+  dueDate?: string,
+  labels?: string[],
+  assigneeId?: string
+) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+
+  if (!title || title.trim().length < 1) {
+    return { error: "Card title is required" };
+  }
+
+  try {
+    const org = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.slug, orgSlug))
+      .limit(1);
+
+    if (org.length === 0) return { error: "Organization not found" };
+
+    const membership = await db
+      .select()
+      .from(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.organizationId, org[0].id),
+          eq(organizationMembers.userId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (membership.length === 0) return { error: "Not a member of this organization" };
+
+    if (assigneeId) {
+      const assigneeMember = await db
+        .select()
+        .from(organizationMembers)
+        .where(
+          and(
+            eq(organizationMembers.organizationId, org[0].id),
+            eq(organizationMembers.userId, assigneeId)
+          )
+        )
+        .limit(1);
+      if (assigneeMember.length === 0) {
+        return { error: "Assignee is not a member of this organization" };
+      }
+    }
+
+    const sanitizedLabels = labels
+      ? labels.map((l) => l.trim()).filter(Boolean).slice(0, 10)
+      : [];
+    if (sanitizedLabels.some((l) => l.length > 50)) {
+      return { error: "Each label must be 50 characters or less" };
+    }
+
+    const column = await db
+      .select()
+      .from(columns)
+      .innerJoin(boards, eq(columns.boardId, boards.id))
+      .innerJoin(projects, eq(boards.projectId, projects.id))
+      .where(
+        and(
+          eq(columns.id, columnId),
+          eq(boards.id, boardId),
+          eq(projects.id, projectId),
+          eq(projects.organizationId, org[0].id)
+        )
+      )
+      .limit(1);
+
+    if (column.length === 0) return { error: "Column not found" };
+
+    const existingCards = await db
+      .select()
+      .from(cards)
+      .where(eq(cards.columnId, columnId));
+
+    const [card] = await db
+      .insert(cards)
+      .values({
+        columnId,
+        title: title.trim(),
+        description: description?.trim() || null,
+        priority: priority || "medium",
+        dueDate: dueDate ? new Date(dueDate) : null,
+        labels: sanitizedLabels,
+        assigneeId: assigneeId || null,
+        order: existingCards.length,
+      })
+      .returning();
+
+    revalidatePath(`/org/${orgSlug}/projects/${projectId}/boards/${boardId}`);
+    return { cardId: card.id };
+  } catch (err) {
+    console.error("Failed to create card:", err);
+    return { error: "Failed to create card. Please try again." };
+  }
+}
+
+export async function updateCard(
+  cardId: string,
+  columnId: string,
+  boardId: string,
+  orgSlug: string,
+  projectId: string,
+  updates: {
+    title?: string;
+    description?: string;
+    priority?: "low" | "medium" | "high";
+    dueDate?: string | null;
+    labels?: string[];
+    assigneeId?: string | null;
+    columnId?: string;
+  }
+) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+
+  try {
+    const org = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.slug, orgSlug))
+      .limit(1);
+
+    if (org.length === 0) return { error: "Organization not found" };
+
+    const membership = await db
+      .select()
+      .from(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.organizationId, org[0].id),
+          eq(organizationMembers.userId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (membership.length === 0) return { error: "Not a member of this organization" };
+
+    if (updates.assigneeId) {
+      const assigneeMember = await db
+        .select()
+        .from(organizationMembers)
+        .where(
+          and(
+            eq(organizationMembers.organizationId, org[0].id),
+            eq(organizationMembers.userId, updates.assigneeId)
+          )
+        )
+        .limit(1);
+      if (assigneeMember.length === 0) {
+        return { error: "Assignee is not a member of this organization" };
+      }
+    }
+
+    if (updates.labels) {
+      const sanitizedLabels = updates.labels.map((l) => l.trim()).filter(Boolean).slice(0, 10);
+      if (sanitizedLabels.some((l) => l.length > 50)) {
+        return { error: "Each label must be 50 characters or less" };
+      }
+      updates.labels = sanitizedLabels;
+    }
+
+    const card = await db
+      .select()
+      .from(cards)
+      .innerJoin(columns, eq(cards.columnId, columns.id))
+      .innerJoin(boards, eq(columns.boardId, boards.id))
+      .innerJoin(projects, eq(boards.projectId, projects.id))
+      .where(
+        and(
+          eq(cards.id, cardId),
+          eq(columns.id, columnId),
+          eq(boards.id, boardId),
+          eq(projects.id, projectId),
+          eq(projects.organizationId, org[0].id)
+        )
+      )
+      .limit(1);
+
+    if (card.length === 0) return { error: "Card not found" };
+
+    const setData: Record<string, unknown> = { updatedAt: new Date() };
+    if (updates.title !== undefined) setData.title = updates.title.trim();
+    if (updates.description !== undefined) setData.description = updates.description.trim() || null;
+    if (updates.priority !== undefined) setData.priority = updates.priority;
+    if (updates.dueDate !== undefined) setData.dueDate = updates.dueDate ? new Date(updates.dueDate) : null;
+    if (updates.labels !== undefined) setData.labels = updates.labels;
+    if (updates.assigneeId !== undefined) setData.assigneeId = updates.assigneeId || null;
+    if (updates.columnId !== undefined) setData.columnId = updates.columnId;
+
+    await db
+      .update(cards)
+      .set(setData)
+      .where(eq(cards.id, cardId));
+
+    revalidatePath(`/org/${orgSlug}/projects/${projectId}/boards/${boardId}`);
+    return { success: true };
+  } catch (err) {
+    console.error("Failed to update card:", err);
+    return { error: "Failed to update card. Please try again." };
+  }
+}
+
+export async function deleteCard(
+  cardId: string,
+  columnId: string,
+  boardId: string,
+  orgSlug: string,
+  projectId: string
+) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+
+  try {
+    const org = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.slug, orgSlug))
+      .limit(1);
+
+    if (org.length === 0) return { error: "Organization not found" };
+
+    const membership = await db
+      .select()
+      .from(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.organizationId, org[0].id),
+          eq(organizationMembers.userId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (membership.length === 0) return { error: "Not a member of this organization" };
+
+    const card = await db
+      .select()
+      .from(cards)
+      .innerJoin(columns, eq(cards.columnId, columns.id))
+      .innerJoin(boards, eq(columns.boardId, boards.id))
+      .innerJoin(projects, eq(boards.projectId, projects.id))
+      .where(
+        and(
+          eq(cards.id, cardId),
+          eq(columns.id, columnId),
+          eq(boards.id, boardId),
+          eq(projects.id, projectId),
+          eq(projects.organizationId, org[0].id)
+        )
+      )
+      .limit(1);
+
+    if (card.length === 0) return { error: "Card not found" };
+
+    await db.delete(cards).where(eq(cards.id, cardId));
+
+    revalidatePath(`/org/${orgSlug}/projects/${projectId}/boards/${boardId}`);
+    return { success: true };
+  } catch (err) {
+    console.error("Failed to delete card:", err);
+    return { error: "Failed to delete card. Please try again." };
+  }
+}
+
+export async function moveCard(
+  cardId: string,
+  boardId: string,
+  orgSlug: string,
+  projectId: string,
+  newColumnId: string,
+  newOrder: number
+) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+
+  try {
+    const org = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.slug, orgSlug))
+      .limit(1);
+
+    if (org.length === 0) return { error: "Organization not found" };
+
+    const membership = await db
+      .select()
+      .from(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.organizationId, org[0].id),
+          eq(organizationMembers.userId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (membership.length === 0) return { error: "Not a member of this organization" };
+
+    const cardCheck = await db
+      .select()
+      .from(cards)
+      .innerJoin(columns, eq(cards.columnId, columns.id))
+      .innerJoin(boards, eq(columns.boardId, boards.id))
+      .innerJoin(projects, eq(boards.projectId, projects.id))
+      .where(
+        and(
+          eq(cards.id, cardId),
+          eq(boards.id, boardId),
+          eq(projects.id, projectId),
+          eq(projects.organizationId, org[0].id)
+        )
+      )
+      .limit(1);
+
+    if (cardCheck.length === 0) return { error: "Card not found" };
+
+    const newColumnCheck = await db
+      .select()
+      .from(columns)
+      .innerJoin(boards, eq(columns.boardId, boards.id))
+      .innerJoin(projects, eq(boards.projectId, projects.id))
+      .where(
+        and(
+          eq(columns.id, newColumnId),
+          eq(boards.id, boardId),
+          eq(projects.id, projectId),
+          eq(projects.organizationId, org[0].id)
+        )
+      )
+      .limit(1);
+
+    if (newColumnCheck.length === 0) return { error: "Target column not found" };
+
+    const oldColumnId = cardCheck[0].cards.columnId;
+
+    await db.transaction(async (tx) => {
+      if (oldColumnId !== newColumnId) {
+        await tx
+          .update(cards)
+          .set({ order: newOrder, columnId: newColumnId })
+          .where(eq(cards.id, cardId));
+      } else {
+        await tx
+          .update(cards)
+          .set({ order: newOrder })
+          .where(eq(cards.id, cardId));
+      }
+    });
+
+    revalidatePath(`/org/${orgSlug}/projects/${projectId}/boards/${boardId}`);
+    return { success: true };
+  } catch (err) {
+    console.error("Failed to move card:", err);
+    return { error: "Failed to move card. Please try again." };
   }
 }

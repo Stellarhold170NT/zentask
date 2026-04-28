@@ -4,7 +4,7 @@ import { Plus, Building2 } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { db } from "@/lib/db/db";
 import { organizations, organizationMembers } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CreateOrgDialog } from "@/components/organizations/create-org-dialog";
@@ -26,7 +26,8 @@ export default async function OrganizationsPage() {
     })
     .from(organizationMembers)
     .innerJoin(organizations, eq(organizationMembers.organizationId, organizations.id))
-    .where(eq(organizationMembers.userId, user.id));
+    .where(eq(organizationMembers.userId, user.id))
+    .orderBy(desc(organizations.createdAt));
 
   return (
     <div className="space-y-6">
