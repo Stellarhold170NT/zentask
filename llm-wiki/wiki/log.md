@@ -16,3 +16,8 @@
 ## [2026-04-28] ingest | GSD (Get Shit Done) Workflow
 - Ingested: https://github.com/gsd-build/get-shit-done
 - Updated: Added detailed Input/Output and .planning folder structure.
+
+## [2026-04-28] ingest | Oh-My-OpenAgent (OmO)
+- Ingested: https://github.com/code-yeongyu/oh-my-openagent
+- Ingested: https://ohmyopenagent.com/docs
+- Updated: Added advanced configuration, specialized tools (MCPs, Skills), and project-level config locations.
