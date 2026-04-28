@@ -12,3 +12,7 @@
 
 ## [2026-04-27] design | Database Schema: Zentask
 - Created: Detailed SQL schema for Supabase implementation.
+
+## [2026-04-28] ingest | GSD (Get Shit Done) Workflow
+- Ingested: https://github.com/gsd-build/get-shit-done
+- Updated: Added detailed Input/Output and .planning folder structure.
