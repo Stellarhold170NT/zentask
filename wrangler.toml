@@ -1,0 +1,11 @@
+name = "zentask"
+compatibility_date = "2024-04-28"
+compatibility_flags = [ "nodejs_compat" ]
+pages_build_output_dir = ".next"
+
+[vars]
+# Các biến môi trường Public (Không nhạy cảm)
+NEXT_PUBLIC_APP_URL = "http://localhost:3000"
+
+# Lưu ý: Các biến nhạy cảm như DATABASE_URL, SUPABASE_ANON_KEY 
+# phải được thiết lập trực tiếp trên Cloudflare Dashboard để bảo mật.

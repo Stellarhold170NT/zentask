@@ -35,10 +35,14 @@ export default function LoginPage() {
     setError("");
     try {
       const result = await login(data.email, data.password);
-      if (result.error) {
+      if (result?.error) {
         setError(result.error);
       }
-    } catch {
+    } catch (e) {
+      // Don't set error if it's a redirect (Next.js internals)
+      if (e instanceof Error && e.message === "NEXT_REDIRECT") {
+        return;
+      }
       setError("An unexpected error occurred");
     } finally {
       setLoading(false);
